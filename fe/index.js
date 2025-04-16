@@ -150,7 +150,7 @@ async function handleOneSign (signItem) {
           const div = createPrintDiv()
           new QRCode(div, qrUrl)
         } else if (message.data.type === 3 && IS_SHOW_SIGN_STU) {
-          const { data: { studentNumber, name, rank } } = message
+          const { data: { student: { studentNumber, name, rank } } } = message
           print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
         }
       }
