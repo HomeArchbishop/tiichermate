@@ -3,18 +3,33 @@ function getUrlParam (paramName) {
   return urlParams.get(paramName)
 }
 
+let lastPrint = ''
+let lastPrintCntDOM = null
+
 function print (str) {
+  if (str === lastPrint && lastPrintCntDOM !== null) {
+    lastPrintCntDOM.innerHTML = '...x' + (parseInt([...lastPrintCntDOM.innerHTML.matchAll(/\d+/g)][0]?.[0] || '1') + 1)
+    return
+  }
   const p = document.createElement('pre')
   p.innerHTML = str
+  lastPrint = str
+  const cnt = document.createElement('span')
+  cnt.style.marginLeft = '40px'
+  lastPrintCntDOM = cnt
   document.querySelector('#output').appendChild(p)
+  p.appendChild(cnt)
+  window.scrollTo(0, document.body.scrollHeight)
 }
 
-const API_URL = getUrlParam('dev') === 'true' ? "http://localhost:3030" : "http://139.196.47.35"
+const API_URL = getUrlParam('api') ?? 'http://localhost:1357'
 const OPENID = getUrlParam('openid')
 
 if (!OPENID) {
   print('错误：未获得 openid')
 }
+
+const handlingSign = {}
 
 async function listenForActiveSigns () {
   setTimeout(() => {
@@ -29,21 +44,20 @@ async function listenForActiveSigns () {
     if (!Array.isArray(json)) {
       throw new Error('返回未知数据格式')
     }
-    print(`当前有 ${json.length} 个签到`)
+    const isHandlingCnt = Object.values(handlingSign).filter(v => v).length
+    print(`当前有 ${json.length} 个签到 ${isHandlingCnt > 0 ? `，正在处理 ${isHandlingCnt} 个` : ''}`)
     json.forEach(item => handleOneSign(item))
   } catch (err) {
     print(err.message)
   }
 }
 
-const handlingSign = {}
-
 async function handleOneSign (signItem) {
   const key = signItem.courseId + signItem.signId
   if (handlingSign[key]) { return }
   handlingSign[key] = true
   if (signItem.isQR === 0) {
-    print(`\t正在处理签到：${signItem.name} ${signItem.isGPS ? 'GPS签到' : '普通签到'} ${signItem.courseId}/${signItem.signId}`)
+    print(`\t正在处理签到: ${signItem.name} ${signItem.isGPS ? 'GPS签到' : '普通签到'} ${signItem.courseId}/${signItem.signId}`)
     const res = await fetch(`${API_URL}/api/sign_in?openId=${OPENID}&courseId=${signItem.courseId}&signId=${signItem.signId}`)
     const json = await res.json()
     if (json.errorCode !== undefined) {
@@ -53,6 +67,7 @@ async function handleOneSign (signItem) {
     print(`\t\t签到成功，排名: ${json.studentRank}`)
     handlingSign[key] = false
   } else { // QRcode
+    print(`\t开始监听签到: ${signItem.name} 二维码签到 ${signItem.courseId}/${signItem.signId}`)
     const client = new WebSocket('wss://www.teachermate.com.cn/faye')
     let _seqId = 0
     function seqId() {
@@ -76,7 +91,18 @@ async function handleOneSign (signItem) {
         id: seqId()
       })
     }
-    client.onopen = () => { handshake() }
+    client.onopen = () => {
+      print('\t\t监听二维码 ws 连接成功，等待二维码链接')
+      handshake()
+    }
+    client.onclose = () => {
+      handlingSign[key] = false
+      return print('\t\t监听二维码 ws 连接关闭')
+    }
+    client.onerror = (err) => {
+      handlingSign[key] = false
+      return print('\t\t监听二维码 ws 连接错误')
+    }
     let cid = ''
     client.onmessage = (event) => {
       console.log(`receiveMessage`, event.data);
@@ -102,8 +128,7 @@ async function handleOneSign (signItem) {
         if (!timeout) { return }
         sendMessage()
         setInterval(() => {
-          console.log(timeout);
-          sendMessage();
+          sendMessage()
           sendMessage({
               channel: '/meta/connect',
               clientId: cid,
@@ -113,7 +138,7 @@ async function handleOneSign (signItem) {
         }, timeout / 2)
       } else if (message.channel.startsWith('/attendance/')) {
         const { data: { qrUrl } } = message
-        print(`<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
+        print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
       }
     }
   }
