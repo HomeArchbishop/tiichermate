@@ -22,6 +22,12 @@ function print (str) {
   window.scrollTo(0, document.body.scrollHeight)
 }
 
+function createPrintDiv () {
+  const div = document.createElement('div')
+  document.querySelector('#output').appendChild(div)
+  return div
+}
+
 const API_URL = getUrlParam('api') ?? 'http://localhost:1357'
 const OPENID = getUrlParam('openid')
 
@@ -139,6 +145,8 @@ async function handleOneSign (signItem) {
       } else if (message.channel.startsWith('/attendance/')) {
         const { data: { qrUrl } } = message
         print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
+        const div = createPrintDiv()
+        new QRCode(div, qrUrl)
       }
     }
   }
