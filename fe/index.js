@@ -153,6 +153,13 @@ async function handleOneSign (signItem) {
           const { data: { student: { studentNumber, name, rank } } } = message
           print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
         }
+      } else if (message.channel === '/meta/unsubscribe') {
+        const { subscription } = message
+        if (subscription === `/attendance/${signItem.courseId}/${signItem.signId}/qr`) {
+          print(`\t\t二维码签到结束`)
+          handlingSign[key] = false
+          client.close()
+        }
       }
     }
   }
