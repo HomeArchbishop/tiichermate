@@ -30,6 +30,7 @@ function createPrintDiv () {
 
 const API_URL = getUrlParam('api') ?? 'http://localhost:1357'
 const OPENID = getUrlParam('openid')
+const IS_SHOW_SIGN_STU = getUrlParam('showsignstu') === 'true'
 
 if (!OPENID) {
   print('错误：未获得 openid')
@@ -143,10 +144,15 @@ async function handleOneSign (signItem) {
           })
         }, timeout / 2)
       } else if (message.channel.startsWith('/attendance/')) {
-        const { data: { qrUrl } } = message
-        print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
-        const div = createPrintDiv()
-        new QRCode(div, qrUrl)
+        if (message.data.type === 1) {
+          const { data: { qrUrl } } = message
+          print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
+          const div = createPrintDiv()
+          new QRCode(div, qrUrl)
+        } else if (message.data.type === 3 && IS_SHOW_SIGN_STU) {
+          const { data: { studentNumber, name, rank } } = message
+          print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
+        }
       }
     }
   }
