@@ -1,56 +1,38 @@
-function getUrlParam (paramName) {
-  const urlParams = new URLSearchParams(window.location.search)
-  return urlParams.get(paramName)
-}
+const getUrlParam = (paramName) => (new URLSearchParams(window.location.search)).get(paramName)
 
 let lastPrint = ''
 let lastPrintCntDOM = null
 
-function print (str) {
+const print = (str) => {
   if (str === lastPrint && lastPrintCntDOM !== null) {
     lastPrintCntDOM.innerHTML = '...x' + (parseInt([...lastPrintCntDOM.innerHTML.matchAll(/\d+/g)][0]?.[0] || '1') + 1)
     return
   }
-  const p = document.createElement('pre')
+  const [p, cnt] = [document.createElement('pre'), document.createElement('span')]
   p.innerHTML = str
   lastPrint = str
-  const cnt = document.createElement('span')
   cnt.style.marginLeft = '40px'
   lastPrintCntDOM = cnt
-  document.querySelector('#output').appendChild(p)
-  p.appendChild(cnt)
+  document.querySelector('#output').appendChild(p).appendChild(cnt)
   window.scrollTo(0, document.body.scrollHeight)
 }
 
-function createPrintDiv () {
-  const div = document.createElement('div')
-  document.querySelector('#output').appendChild(div)
-  return div
-}
+const createPrintDiv = () => document.querySelector('#output').appendChild(document.createElement('div'))
 
-const API_URL = getUrlParam('api') ?? 'http://localhost:1357'
+const API_URL = getUrlParam('api')
 const OPENID = getUrlParam('openid')
 const IS_SHOW_SIGN_STU = getUrlParam('showsignstu') === 'true'
 
-if (!OPENID) {
-  print('错误：未获得 openid')
-}
+if (!OPENID) { print('错误：未获得 openid') }
 
 const handlingSign = {}
 
-async function listenForActiveSigns () {
-  setTimeout(() => {
-    listenForActiveSigns()
-  }, 3000)
+const listenForActiveSigns = async () => {
+  setTimeout(listenForActiveSigns, 3000)
   try {
-    const res = await fetch(`${API_URL}/api/active_signs?openId=${OPENID}`)
-    const json = await res.json()
-    if (json.message !== undefined) {
-      throw new Error(json.message)
-    }
-    if (!Array.isArray(json)) {
-      throw new Error('返回未知数据格式')
-    }
+    const json = await fetch(`${API_URL}/api/active_signs?openId=${OPENID}`).then(r => r.json())
+    if (json.message !== undefined) { throw new Error(json.message) }
+    if (!Array.isArray(json)) { throw new Error('返回未知数据格式') }
     const isHandlingCnt = Object.values(handlingSign).filter(v => v).length
     print(`当前有 ${json.length} 个签到 ${isHandlingCnt > 0 ? `，正在处理 ${isHandlingCnt} 个` : ''}`)
     json.forEach(item => handleOneSign(item))
@@ -59,7 +41,7 @@ async function listenForActiveSigns () {
   }
 }
 
-async function handleOneSign (signItem) {
+const handleOneSign = async (signItem) => {
   const key = signItem.courseId + signItem.signId
   if (handlingSign[key]) { return }
   handlingSign[key] = true
@@ -76,48 +58,38 @@ async function handleOneSign (signItem) {
   } else { // QRcode
     print(`\t开始监听签到: ${signItem.name} 二维码签到 ${signItem.courseId}/${signItem.signId}`)
     const client = new WebSocket('wss://www.teachermate.com.cn/faye')
-    let _seqId = 0
-    function seqId() {
-      return `${_seqId++}`
-    }
+    const seqId = (() => {
+      let _seqId = 0
+      return () => `${_seqId++}`
+    })()
     const sendMessage = (msg) => {
-      const raw = JSON.stringify(msg ? [msg] : [])
-      client.send(raw)
-    }
-    const handshake = () => {
-      sendMessage({
-        channel: '/meta/handshake',
-        version: '1.0',
-        supportedConnectionTypes: [
-          'websocket',
-          'eventsource',
-          'long-polling',
-          'cross-origin-long-polling',
-          'callback-polling'
-        ],
-        id: seqId()
-      })
+      client.send(JSON.stringify(msg ? [msg] : []))
     }
     client.onopen = () => {
       print('\t\t监听二维码 ws 连接成功，等待二维码链接')
-      handshake()
+      sendMessage({
+        channel: '/meta/handshake',
+        version: '1.0',
+        supportedConnectionTypes: ['websocket', 'eventsource', 'long-polling', 'cross-origin-long-polling', 'callback-polling'],
+        id: seqId()
+      })
     }
     client.onclose = () => {
       handlingSign[key] = false
       return print('\t\t监听二维码 ws 连接关闭')
     }
-    client.onerror = (err) => {
+    client.onerror = () => {
       handlingSign[key] = false
       return print('\t\t监听二维码 ws 连接错误')
     }
     let cid = ''
     client.onmessage = (event) => {
-      console.log(`receiveMessage`, event.data);
-      const message = JSON.parse(event.data)[0];
-      if (!message) return;
+      console.log(`receiveMessage`, event.data)
+      const message = JSON.parse(event.data)[0]
+      if (!message) return
       if (message.channel === '/meta/handshake') {
-        const { clientId } = message;
-        cid = clientId;
+        const { clientId } = message
+        cid = clientId
         sendMessage({
           channel: '/meta/connect',
           clientId,
@@ -126,12 +98,12 @@ async function handleOneSign (signItem) {
         })
         sendMessage({
           channel: '/meta/subscribe',
-          clientId: message.clientId,
+          clientId,
           subscription: `/attendance/${signItem.courseId}/${signItem.signId}/qr`,
           id: seqId()
         })
       } else if (message.channel === '/meta/connect') {
-        const { advice: { timeout } } = message;
+        const { advice: { timeout } } = message
         if (!timeout) { return }
         sendMessage()
         setTimeout(() => {
@@ -147,8 +119,7 @@ async function handleOneSign (signItem) {
         if (message.data.type === 1) {
           const { data: { qrUrl } } = message
           print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
-          const div = createPrintDiv()
-          new QRCode(div, qrUrl)
+          new QRCode(createPrintDiv(), qrUrl)
         } else if (message.data.type === 3 && IS_SHOW_SIGN_STU) {
           const { data: { student: { studentNumber, name, rank } } } = message
           print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
