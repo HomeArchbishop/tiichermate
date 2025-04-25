@@ -22,6 +22,7 @@ const createPrintDiv = () => document.querySelector('#output').appendChild(docum
 const API_URL = getUrlParam('api')
 const OPENID = getUrlParam('openid')
 const IS_SHOW_SIGN_STU = getUrlParam('showsignstu') === 'true'
+const IS_AUTO_QR = getUrlParam('autoqr') === 'true'
 
 if (!OPENID) { print('错误：未获得 openid') }
 
@@ -120,6 +121,11 @@ const handleOneSign = async (signItem) => {
           const { data: { qrUrl } } = message
           print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
           new QRCode(createPrintDiv(), qrUrl)
+          if (IS_AUTO_QR) {
+            setTimeout(() => {
+              location.href = qrUrl
+            }, 2000)
+          }
         } else if (message.data.type === 3 && IS_SHOW_SIGN_STU) {
           const { data: { student: { studentNumber, name, rank } } } = message
           print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
