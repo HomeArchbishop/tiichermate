@@ -1,1 +1,4 @@
 /target
+
+fe/node_modules
+fe/dist

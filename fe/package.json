@@ -1,0 +1,19 @@
+{
+  "name": "tiichermate",
+  "version": "1.0.0",
+  "description": "tiichermate",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "vite": "^7.1.5"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "eslint": "^9.35.0",
+    "neostandard": "^0.12.2"
+  }
+}
