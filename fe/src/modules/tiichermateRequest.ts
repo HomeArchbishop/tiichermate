@@ -23,18 +23,21 @@ export class TiichermateApi {
     this.TOKEN = token
   }
 
+  private static buildUnwrap<T> (dataPromise: Promise<ApiResponse<T>>) {
+    return async () => {
+      const data: ApiResponse<T> = await dataPromise
+      if (data.code === 0) {
+        return [data.result, undefined] as const
+      }
+      return [undefined, data] as const
+    }
+  }
+
   static fetch<T> (baseUrl: string) {
     const request = new TiichermateRequest(baseUrl, TiichermateApi.API_KEY, TiichermateApi.TOKEN)
-    const response = fetch(request)
+    const dataPromise = fetch(request).then<ApiResponse<T>>(r => r.json())
     return {
-      unwrap: async () => {
-        const data = await response.then(r => r.json()) as ApiResponse<T>
-        return [
-          data.result,
-          data.code,
-          data.msg,
-        ]
-      },
+      unwrap: this.buildUnwrap(dataPromise),
     }
   }
 }

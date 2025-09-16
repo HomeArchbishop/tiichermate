@@ -16,3 +16,5 @@ export const buildSeqId = ({ from = 0 }) => (() => {
   let _seqId = from
   return () => `${_seqId++}`
 })()
+
+export const voidFunc = () => {}
