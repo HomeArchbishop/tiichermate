@@ -36,6 +36,9 @@ const getLocation = () => {
 
 getLocation()
 
+const lon = 114.40119710
+const lat = 30.51119956
+
 const handlingSign = {}
 
 const listenForActiveSigns = async () => {
@@ -58,7 +61,7 @@ const handleOneSign = async (signItem) => {
   handlingSign[key] = true
   if (signItem.isQR === 0) {
     print(`\t正在处理签到: ${signItem.name} ${signItem.isGPS ? 'GPS签到' : '普通签到'} ${signItem.courseId}/${signItem.signId}`)
-    const res = await fetch(`${API_URL}/api/sign_in?openId=${OPENID}&courseId=${signItem.courseId}&signId=${signItem.signId}`)
+    const res = await fetch(`${API_URL}/api/sign_in?openId=${OPENID}&courseId=${signItem.courseId}&signId=${signItem.signId}&lon=${lon}&lat=${lat}`)
     const json = await res.json()
     if (json.errorCode !== undefined) {
       handlingSign[key] = false
