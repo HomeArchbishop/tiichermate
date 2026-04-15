@@ -26,6 +26,16 @@ const IS_AUTO_QR = getUrlParam('autoqr') === 'true'
 
 if (!OPENID) { print('错误：未获得 openid') }
 
+const getLocation = () => {
+  navigator.geolocation.getCurrentPosition(position => {
+    print(`位置: ${position.coords.longitude}, ${position.coords.latitude}`)
+  }, error => {
+    print(error.message)
+  })
+}
+
+getLocation()
+
 const handlingSign = {}
 
 const listenForActiveSigns = async () => {
