@@ -14,9 +14,11 @@
 
 ```bash
 # build
-cargo build --release
+zig build -Doptimize=ReleaseSafe
 # run
-./target/release/tiichermate
+./zig-out/bin/tiichermate
+# or
+zig build run -Doptimize=ReleaseSafe
 ```
 
 会在 `1357` 端口启动 HTTP 服务。如需要 HTTPS，请使用 nginx 或其他反向代理工具。**特别注意，如果前端是 HTTPS， 后端必须使用 HTTPS**
