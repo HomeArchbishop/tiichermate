@@ -1,40 +1,123 @@
-const getUrlParam = (paramName) => (new URLSearchParams(window.location.search)).get(paramName)
+const getUrlParam = (name) => new URLSearchParams(window.location.search).get(name)
 
-let lastPrint = ''
-let lastPrintCntDOM = null
+const statusEl = document.querySelector('#status')
+const feedEl = document.querySelector('#feed')
 
-const print = (str) => {
-  if (str === lastPrint && lastPrintCntDOM !== null) {
-    lastPrintCntDOM.innerHTML = '...x' + (parseInt([...lastPrintCntDOM.innerHTML.matchAll(/\d+/g)][0]?.[0] || '1') + 1)
-    return
-  }
-  const [p, cnt] = [document.createElement('pre'), document.createElement('span')]
-  p.innerHTML = str
-  lastPrint = str
-  cnt.style.marginLeft = '40px'
-  lastPrintCntDOM = cnt
-  document.querySelector('#output').appendChild(p).appendChild(cnt)
-  window.scrollTo(0, document.body.scrollHeight)
+let lastText = ''
+let lastRow = null
+
+const formatTime = (d = new Date()) =>
+  d.toLocaleTimeString('zh-CN', { hour12: false })
+
+const setStatus = (text) => {
+  statusEl.textContent = text
 }
 
-const createPrintDiv = () => document.querySelector('#output').appendChild(document.createElement('div'))
+const print = (text, meta = '') => {
+  if (text === lastText && lastRow) {
+    const badge = lastRow.querySelector('.repeat') || Object.assign(document.createElement('span'), { className: 'meta repeat' })
+    const n = parseInt(badge.dataset.n || '1', 10) + 1
+    badge.dataset.n = String(n)
+    badge.textContent = `×${n} · ${formatTime()}`
+    if (!badge.parentNode) lastRow.appendChild(badge)
+    return lastRow
+  }
+  const row = document.createElement('article')
+  row.className = 'row'
+  row.appendChild(Object.assign(document.createElement('div'), { textContent: text }))
+  if (meta) {
+    row.appendChild(Object.assign(document.createElement('span'), { className: 'meta', textContent: meta }))
+  }
+  feedEl.appendChild(row)
+  lastText = text
+  lastRow = row
+  row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  return row
+}
+
+const makeQrPanel = (signItem) => {
+  const row = document.createElement('article')
+  row.className = 'row'
+  const title = Object.assign(document.createElement('div'), { textContent: `二维码 · ${signItem.name}` })
+  const meta = Object.assign(document.createElement('span'), {
+    className: 'meta',
+    textContent: `${signItem.courseId}/${signItem.signId} · 等待推送`,
+  })
+  const actions = Object.assign(document.createElement('div'), { className: 'meta actions', hidden: true })
+  const openLink = Object.assign(document.createElement('a'), {
+    target: '_blank',
+    rel: 'noopener',
+    textContent: '打开链接',
+  })
+  const copyLink = Object.assign(document.createElement('a'), {
+    href: '#',
+    textContent: '复制链接',
+  })
+  copyLink.addEventListener('click', (e) => {
+    e.preventDefault()
+    if (!lastUrl) return
+    navigator.clipboard.writeText(lastUrl).then(
+      () => { copyLink.textContent = '已复制'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
+      () => { copyLink.textContent = '复制失败'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
+    )
+  })
+  actions.append(openLink, copyLink)
+  const qrWrap = Object.assign(document.createElement('div'), { className: 'qr' })
+  row.append(title, meta, actions, qrWrap)
+  feedEl.appendChild(row)
+  lastText = title.textContent
+  lastRow = row
+
+  let refreshCount = 0
+  let lastUrl = ''
+  return {
+    row,
+    update(qrUrl) {
+      if (qrUrl === lastUrl) return
+      lastUrl = qrUrl
+      refreshCount += 1
+      meta.textContent = `${signItem.courseId}/${signItem.signId} · 第 ${refreshCount} 次`
+      openLink.href = qrUrl
+      actions.hidden = false
+      qrWrap.replaceChildren()
+      new QRCode(qrWrap, qrUrl)
+      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    },
+  }
+}
 
 const API_URL = getUrlParam('api')
 const OPENID = getUrlParam('openid')
-const IS_SHOW_SIGN_STU = getUrlParam('showsignstu') === 'true'
-const IS_AUTO_QR = getUrlParam('autoqr') === 'true'
+const autoQrEl = document.querySelector('#autoqr')
+const showStuEl = document.querySelector('#showsignstu')
+autoQrEl.checked = getUrlParam('autoqr') !== 'false'
+showStuEl.checked = getUrlParam('showsignstu') === 'true'
 
-if (!OPENID) { print('错误：未获得 openid') }
+let mainStatus = '准备中…'
+let locHint = ''
 
-const getLocation = () => {
-  navigator.geolocation.getCurrentPosition(position => {
-    print(`位置: ${position.coords.longitude}, ${position.coords.latitude}`)
-  }, error => {
-    print(error.message)
-  })
+const refreshStatus = (main) => {
+  if (main !== undefined) mainStatus = main
+  const parts = [mainStatus]
+  if (locHint) parts.push(locHint)
+  parts.push(formatTime())
+  setStatus(parts.join(' · '))
 }
 
-getLocation()
+if (!OPENID) {
+  refreshStatus('缺少 openid')
+  print('无法开始', 'URL 需要带上 openid 参数')
+} else {
+  refreshStatus()
+}
+
+navigator.geolocation.getCurrentPosition(
+  (pos) => {
+    locHint = `${pos.coords.longitude.toFixed(5)}, ${pos.coords.latitude.toFixed(5)}`
+    refreshStatus()
+  },
+  () => {},
+)
 
 const lon = 114.40119710
 const lat = 30.51119956
@@ -43,111 +126,98 @@ const handlingSign = {}
 
 const listenForActiveSigns = async () => {
   setTimeout(listenForActiveSigns, 3000)
+  if (!OPENID) return
   try {
-    const json = await fetch(`${API_URL}/api/active_signs?openId=${OPENID}`).then(r => r.json())
-    if (json.message !== undefined) { throw new Error(json.message) }
-    if (!Array.isArray(json)) { throw new Error('返回未知数据格式') }
-    const isHandlingCnt = Object.values(handlingSign).filter(v => v).length
-    print(`当前有 ${json.length} 个签到 ${isHandlingCnt > 0 ? `，正在处理 ${isHandlingCnt} 个` : ''}`)
-    json.forEach(item => handleOneSign(item))
+    const json = await fetch(`${API_URL}/api/active_signs?openId=${OPENID}`).then((r) => r.json())
+    if (json.message !== undefined) throw new Error(json.message)
+    if (!Array.isArray(json)) throw new Error('返回未知数据格式')
+    const handling = Object.values(handlingSign).filter(Boolean).length
+    const base = json.length === 0 ? '暂无签到' : `${json.length} 个进行中`
+    refreshStatus(handling > 0 ? `${base} · 处理 ${handling} 个` : base)
+    json.forEach((item) => handleOneSign(item))
   } catch (err) {
-    print(err.message)
+    refreshStatus(err.message)
   }
 }
 
 const handleOneSign = async (signItem) => {
   const key = signItem.courseId + signItem.signId
-  if (handlingSign[key]) { return }
+  if (handlingSign[key]) return
   handlingSign[key] = true
+
   if (signItem.isQR === 0) {
-    print(`\t正在处理签到: ${signItem.name} ${signItem.isGPS ? 'GPS签到' : '普通签到'} ${signItem.courseId}/${signItem.signId}`)
+    const kind = signItem.isGPS ? 'GPS' : '普通'
+    print(`签到 · ${signItem.name}`, `${kind} · ${signItem.courseId}/${signItem.signId}`)
     const res = await fetch(`${API_URL}/api/sign_in?openId=${OPENID}&courseId=${signItem.courseId}&signId=${signItem.signId}&lon=${lon}&lat=${lat}`)
     const json = await res.json()
     if (json.errorCode !== undefined) {
       handlingSign[key] = false
-      return print(`\t\t签到结果：${signItem.name} ${json.msgClient}`)
+      return print(`${signItem.name} 未成功`, json.msgClient)
     }
-    print(`\t\t签到成功，排名: ${json.studentRank}`)
+    print(`${signItem.name} 已签到`, `排名 ${json.studentRank}`)
     handlingSign[key] = false
-  } else { // QRcode
-    print(`\t开始监听签到: ${signItem.name} 二维码签到 ${signItem.courseId}/${signItem.signId}`)
-    const client = new WebSocket('wss://www.teachermate.com.cn/faye')
-    const seqId = (() => {
-      let _seqId = 0
-      return () => `${_seqId++}`
-    })()
-    const sendMessage = (msg) => {
-      client.send(JSON.stringify(msg ? [msg] : []))
-    }
-    client.onopen = () => {
-      print('\t\t监听二维码 ws 连接成功，等待二维码链接')
+    return
+  }
+
+  const qrPanel = makeQrPanel(signItem)
+  const client = new WebSocket('wss://www.teachermate.com.cn/faye')
+  const seqId = (() => {
+    let id = 0
+    return () => `${id++}`
+  })()
+  const sendMessage = (msg) => client.send(JSON.stringify(msg ? [msg] : []))
+
+  client.onopen = () => {
+    sendMessage({
+      channel: '/meta/handshake',
+      version: '1.0',
+      supportedConnectionTypes: ['websocket', 'eventsource', 'long-polling', 'cross-origin-long-polling', 'callback-polling'],
+      id: seqId(),
+    })
+  }
+  client.onclose = () => {
+    handlingSign[key] = false
+    print('二维码通道关闭', signItem.name)
+  }
+  client.onerror = () => {
+    handlingSign[key] = false
+    print('二维码通道错误', signItem.name)
+  }
+
+  let cid = ''
+  client.onmessage = (event) => {
+    console.log('receiveMessage', event.data)
+    const message = JSON.parse(event.data)[0]
+    if (!message) return
+    if (message.channel === '/meta/handshake') {
+      const { clientId } = message
+      cid = clientId
+      sendMessage({ channel: '/meta/connect', clientId, connectionType: 'websocket', id: seqId() })
       sendMessage({
-        channel: '/meta/handshake',
-        version: '1.0',
-        supportedConnectionTypes: ['websocket', 'eventsource', 'long-polling', 'cross-origin-long-polling', 'callback-polling'],
-        id: seqId()
+        channel: '/meta/subscribe',
+        clientId,
+        subscription: `/attendance/${signItem.courseId}/${signItem.signId}/qr`,
+        id: seqId(),
       })
-    }
-    client.onclose = () => {
-      handlingSign[key] = false
-      return print('\t\t监听二维码 ws 连接关闭')
-    }
-    client.onerror = () => {
-      handlingSign[key] = false
-      return print('\t\t监听二维码 ws 连接错误')
-    }
-    let cid = ''
-    client.onmessage = (event) => {
-      console.log(`receiveMessage`, event.data)
-      const message = JSON.parse(event.data)[0]
-      if (!message) return
-      if (message.channel === '/meta/handshake') {
-        const { clientId } = message
-        cid = clientId
-        sendMessage({
-          channel: '/meta/connect',
-          clientId,
-          connectionType: 'websocket',
-          id: seqId()
-        })
-        sendMessage({
-          channel: '/meta/subscribe',
-          clientId,
-          subscription: `/attendance/${signItem.courseId}/${signItem.signId}/qr`,
-          id: seqId()
-        })
-      } else if (message.channel === '/meta/connect') {
-        const { advice: { timeout } } = message
-        if (!timeout) { return }
+    } else if (message.channel === '/meta/connect') {
+      const { advice: { timeout } } = message
+      if (!timeout) return
+      sendMessage()
+      setTimeout(() => {
         sendMessage()
-        setTimeout(() => {
-          sendMessage()
-          sendMessage({
-              channel: '/meta/connect',
-              clientId: cid,
-              connectionType: 'websocket',
-              id: seqId()
-          })
-        }, timeout / 2)
-      } else if (message.channel.startsWith('/attendance/')) {
-        if (message.data.type === 1) {
-          const { data: { qrUrl } } = message
-          print(`\t\t收到[${signItem.name}]二维码 ${signItem.courseId}/${signItem.signId}\n\t\t<a href="${qrUrl}" target="_blank">${qrUrl}</a>`)
-          new QRCode(createPrintDiv(), qrUrl)
-          if (IS_AUTO_QR) {
-            setTimeout(() => {
-              location.href = qrUrl
-            }, 2000)
-          }
-        } else if (message.data.type === 3 && IS_SHOW_SIGN_STU) {
-          const { data: { student: { studentNumber, name, rank } } } = message
-          print(`\t\t有同学签到，No.${rank} ${name}(${studentNumber})`)
-        }
+        sendMessage({ channel: '/meta/connect', clientId: cid, connectionType: 'websocket', id: seqId() })
+      }, timeout / 2)
+    } else if (message.channel.startsWith('/attendance/')) {
+      if (message.data.type === 1) {
+        const { data: { qrUrl } } = message
+        qrPanel.update(qrUrl)
+        if (autoQrEl.checked) setTimeout(() => { location.href = qrUrl }, 2000)
+      } else if (message.data.type === 3 && showStuEl.checked) {
+        const { data: { student: { studentNumber, name, rank } } } = message
+        print(`同学已签 · ${name}`, `No.${rank} · ${studentNumber}`)
       }
     }
   }
 }
 
-;(async () => {
-  listenForActiveSigns().catch(() => {})
-})()
+listenForActiveSigns().catch(() => {})

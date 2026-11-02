@@ -1,12 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#ffffff">
   <title>tiichermate</title>
+  <style>
+    :root {
+      --bg: #fff;
+      --fg: #1d1d1f;
+      --muted: #86868b;
+      --line: #d2d2d7;
+      --ok: #1d1d1f;
+      --err: #1d1d1f;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 1.25rem 1.25rem calc(2rem + env(safe-area-inset-bottom));
+      padding-top: calc(1.25rem + env(safe-area-inset-top));
+    }
+    h1 {
+      margin: 0 0 0.85rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    #status {
+      margin: 0.85rem 0 1.25rem;
+      color: var(--muted);
+      font-size: 0.9375rem;
+    }
+    .opts {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      padding: 0.85rem 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-size: 0.9375rem;
+    }
+    .opts label {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .opts input {
+      width: 1.05rem;
+      height: 1.05rem;
+      margin-top: 0.15rem;
+      flex-shrink: 0;
+      accent-color: var(--fg);
+    }
+    .opts small {
+      display: block;
+      margin-top: 0.15rem;
+      color: var(--muted);
+      font-size: 0.8125rem;
+      font-weight: 400;
+    }
+    #feed { display: flex; flex-direction: column; }
+    .row {
+      padding: 0.85rem 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.9375rem;
+    }
+    .row:last-child { border-bottom: 1px solid var(--line); }
+    .row .meta {
+      display: block;
+      margin-top: 0.2rem;
+      color: var(--muted);
+      font-size: 0.8125rem;
+    }
+    .row a { color: var(--fg); }
+    .row .actions { display: flex; gap: 1rem; }
+    .row .actions a { cursor: pointer; }
+    .row.repeat { color: var(--muted); }
+    .qr { margin-top: 0.75rem; }
+    .qr canvas, .qr img { max-width: 100%; height: auto; }
+  </style>
 </head>
 <body>
-  <div id="output"></div>
+  <h1>tiichermate</h1>
+  <div class="opts">
+    <label>
+      <input type="checkbox" id="autoqr">
+      <span>自动进行二维码签到<small>普通、GPS 签到始终自动</small></span>
+    </label>
+    <label><input type="checkbox" id="showsignstu"> 显示同学签到信息</label>
+  </div>
+  <p id="status">准备中…</p>
+  <main id="feed" aria-live="polite"></main>
 
   <script src="./qrcode.min.js"></script>
   <script type="module" src="./index.js"></script>
