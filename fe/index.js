@@ -43,45 +43,56 @@ const makeQrPanel = (signItem) => {
     className: 'meta',
     textContent: `${signItem.courseId}/${signItem.signId} · 等待推送`,
   })
-  const actions = Object.assign(document.createElement('div'), { className: 'meta actions', hidden: true })
-  const openLink = Object.assign(document.createElement('a'), {
-    target: '_blank',
-    rel: 'noopener',
-    textContent: '打开链接',
-  })
-  const copyLink = Object.assign(document.createElement('a'), {
-    href: '#',
-    textContent: '复制链接',
-  })
-  copyLink.addEventListener('click', (e) => {
-    e.preventDefault()
-    if (!lastUrl) return
-    navigator.clipboard.writeText(lastUrl).then(
-      () => { copyLink.textContent = '已复制'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
-      () => { copyLink.textContent = '复制失败'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
-    )
-  })
-  actions.append(openLink, copyLink)
   const qrWrap = Object.assign(document.createElement('div'), { className: 'qr' })
-  row.append(title, meta, actions, qrWrap)
+  row.append(title, meta, qrWrap)
   feedEl.appendChild(row)
   lastText = title.textContent
   lastRow = row
 
   let refreshCount = 0
   let lastUrl = ''
+  let actions = null
+
+  const ensureActions = () => {
+    if (actions) return actions
+    actions = Object.assign(document.createElement('div'), { className: 'meta actions' })
+    const openLink = Object.assign(document.createElement('a'), { textContent: '打开链接' })
+    openLink.addEventListener('click', (e) => {
+      e.preventDefault()
+      if (lastUrl) location.href = lastUrl
+    })
+    const copyLink = Object.assign(document.createElement('a'), { href: '#', textContent: '复制链接' })
+    copyLink.addEventListener('click', (e) => {
+      e.preventDefault()
+      if (!lastUrl) return
+      navigator.clipboard.writeText(lastUrl).then(
+        () => { copyLink.textContent = '已复制'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
+        () => { copyLink.textContent = '复制失败'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
+      )
+    })
+    actions.append(openLink, copyLink)
+    meta.after(actions)
+    return actions
+  }
+
   return {
     row,
-    update(qrUrl) {
-      if (qrUrl === lastUrl) return
+    update(qrUrl, { autoJump = false } = {}) {
+      if (qrUrl === lastUrl) return false
       lastUrl = qrUrl
       refreshCount += 1
-      meta.textContent = `${signItem.courseId}/${signItem.signId} · 第 ${refreshCount} 次`
-      openLink.href = qrUrl
-      actions.hidden = false
       qrWrap.replaceChildren()
       new QRCode(qrWrap, qrUrl)
+      if (autoJump) {
+        meta.textContent = `${signItem.courseId}/${signItem.signId} · 正在跳转`
+        actions?.remove()
+        actions = null
+      } else {
+        meta.textContent = `${signItem.courseId}/${signItem.signId} · 第 ${refreshCount} 次`
+        ensureActions()
+      }
       row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      return true
     },
   }
 }
@@ -210,8 +221,9 @@ const handleOneSign = async (signItem) => {
     } else if (message.channel.startsWith('/attendance/')) {
       if (message.data.type === 1) {
         const { data: { qrUrl } } = message
-        qrPanel.update(qrUrl)
-        if (autoQrEl.checked) setTimeout(() => { location.href = qrUrl }, 2000)
+        if (qrPanel.update(qrUrl, { autoJump: autoQrEl.checked }) && autoQrEl.checked) {
+          setTimeout(() => { location.href = qrUrl }, 2000)
+        }
       } else if (message.data.type === 3 && showStuEl.checked) {
         const { data: { student: { studentNumber, name, rank } } } = message
         print(`同学已签 · ${name}`, `No.${rank} · ${studentNumber}`)
