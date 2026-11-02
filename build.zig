@@ -22,4 +22,9 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    const mitm = b.addSystemCommand(&.{ "node", "scripts/build-mitm.js" });
+    mitm.setCwd(b.path("."));
+    const mitm_step = b.step("mitm", "Build MITM inject scripts (mitm/targets → mitm/dist)");
+    mitm_step.dependOn(&mitm.step);
 }

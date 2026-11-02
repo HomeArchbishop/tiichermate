@@ -41,7 +41,7 @@ const makeQrPanel = (signItem) => {
   const title = Object.assign(document.createElement('div'), { textContent: `二维码 · ${signItem.name}` })
   const meta = Object.assign(document.createElement('span'), {
     className: 'meta',
-    textContent: `${signItem.courseId}/${signItem.signId} · 等待推送`,
+    textContent: `${signItem.courseId}/${signItem.signId} · 等待推送`
   })
   const qrWrap = Object.assign(document.createElement('div'), { className: 'qr' })
   row.append(title, meta, qrWrap)
@@ -67,7 +67,7 @@ const makeQrPanel = (signItem) => {
       if (!lastUrl) return
       navigator.clipboard.writeText(lastUrl).then(
         () => { copyLink.textContent = '已复制'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
-        () => { copyLink.textContent = '复制失败'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) },
+        () => { copyLink.textContent = '复制失败'; setTimeout(() => { copyLink.textContent = '复制链接' }, 1200) }
       )
     })
     actions.append(openLink, copyLink)
@@ -77,7 +77,7 @@ const makeQrPanel = (signItem) => {
 
   return {
     row,
-    update(qrUrl, { autoJump = false } = {}) {
+    update (qrUrl, { autoJump = false } = {}) {
       if (qrUrl === lastUrl) return false
       lastUrl = qrUrl
       refreshCount += 1
@@ -93,12 +93,43 @@ const makeQrPanel = (signItem) => {
       }
       row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       return true
-    },
+    }
   }
 }
 
 const API_URL = getUrlParam('api')
 const OPENID = getUrlParam('openid')
+
+// 有 api=xxx → 自建后端; 无 api → 同域直调微助教 (MITM 注入页)
+const DIRECT = !API_URL
+const ACTIVE_SIGNS_URL = '/wechat-api/v1/class-attendance/student/active_signs'
+const SIGN_IN_URL = '/wechat-api/v1/class-attendance/student-sign-in'
+const tmHeaders = () => ({ Accept: '*/*', 'Content-Type': 'application/json', openId: OPENID })
+
+const readJson = async (r) => {
+  const text = await r.text()
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    throw new Error(`接口返回非 JSON (${r.status})`)
+  }
+}
+
+const fetchActiveSigns = () =>
+  DIRECT
+    ? fetch(ACTIVE_SIGNS_URL, { headers: tmHeaders() }).then(readJson)
+    : fetch(`${API_URL}/api/active_signs?openId=${OPENID}`).then(readJson)
+const fetchSignIn = (courseId, signId, lon, lat) =>
+  DIRECT
+    ? fetch(SIGN_IN_URL, {
+      method: 'POST',
+      headers: tmHeaders(),
+      body: JSON.stringify({ courseId, signId, lon, lat })
+    }).then(readJson)
+    : fetch(
+        `${API_URL}/api/sign_in?openId=${OPENID}&courseId=${courseId}&signId=${signId}&lon=${lon}&lat=${lat}`
+    ).then(readJson)
+
 const autoQrEl = document.querySelector('#autoqr')
 const showStuEl = document.querySelector('#showsignstu')
 autoQrEl.checked = getUrlParam('autoqr') !== 'false'
@@ -127,7 +158,7 @@ navigator.geolocation.getCurrentPosition(
     locHint = `${pos.coords.longitude.toFixed(5)}, ${pos.coords.latitude.toFixed(5)}`
     refreshStatus()
   },
-  () => {},
+  () => {}
 )
 
 const lon = 114.40119710
@@ -139,7 +170,7 @@ const listenForActiveSigns = async () => {
   setTimeout(listenForActiveSigns, 3000)
   if (!OPENID) return
   try {
-    const json = await fetch(`${API_URL}/api/active_signs?openId=${OPENID}`).then((r) => r.json())
+    const json = await fetchActiveSigns()
     if (json.message !== undefined) throw new Error(json.message)
     if (!Array.isArray(json)) throw new Error('返回未知数据格式')
     const handling = Object.values(handlingSign).filter(Boolean).length
@@ -159,8 +190,7 @@ const handleOneSign = async (signItem) => {
   if (signItem.isQR === 0) {
     const kind = signItem.isGPS ? 'GPS' : '普通'
     print(`签到 · ${signItem.name}`, `${kind} · ${signItem.courseId}/${signItem.signId}`)
-    const res = await fetch(`${API_URL}/api/sign_in?openId=${OPENID}&courseId=${signItem.courseId}&signId=${signItem.signId}&lon=${lon}&lat=${lat}`)
-    const json = await res.json()
+    const json = await fetchSignIn(signItem.courseId, signItem.signId, lon, lat)
     if (json.errorCode !== undefined) {
       handlingSign[key] = false
       return print(`${signItem.name} 未成功`, json.msgClient)
@@ -183,7 +213,7 @@ const handleOneSign = async (signItem) => {
       channel: '/meta/handshake',
       version: '1.0',
       supportedConnectionTypes: ['websocket', 'eventsource', 'long-polling', 'cross-origin-long-polling', 'callback-polling'],
-      id: seqId(),
+      id: seqId()
     })
   }
   client.onclose = () => {
@@ -208,7 +238,7 @@ const handleOneSign = async (signItem) => {
         channel: '/meta/subscribe',
         clientId,
         subscription: `/attendance/${signItem.courseId}/${signItem.signId}/qr`,
-        id: seqId(),
+        id: seqId()
       })
     } else if (message.channel === '/meta/connect') {
       const { advice: { timeout } } = message
