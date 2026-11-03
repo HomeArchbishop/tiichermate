@@ -178,7 +178,7 @@ const listenForActiveSigns = async () => {
     refreshStatus(handling > 0 ? `${base} · 处理 ${handling} 个` : base)
     json.forEach((item) => handleOneSign(item))
   } catch (err) {
-    refreshStatus(err.message)
+    refreshStatus(`${err.message} · 尝试重新进入页面`)
   }
 }
 
@@ -190,12 +190,16 @@ const handleOneSign = async (signItem) => {
   if (signItem.isQR === 0) {
     const kind = signItem.isGPS ? 'GPS' : '普通'
     print(`签到 · ${signItem.name}`, `${kind} · ${signItem.courseId}/${signItem.signId}`)
-    const json = await fetchSignIn(signItem.courseId, signItem.signId, lon, lat)
-    if (json.errorCode !== undefined) {
-      handlingSign[key] = false
-      return print(`${signItem.name} 未成功`, json.msgClient)
+    try {
+      const json = await fetchSignIn(signItem.courseId, signItem.signId, lon, lat)
+      if (json.errorCode !== undefined) {
+        handlingSign[key] = false
+        return print(`${signItem.name} 未成功`, `${json.msgClient} · 尝试重新进入页面`)
+      }
+      print(`${signItem.name} 已签到`, `排名 ${json.studentRank}`)
+    } catch (err) {
+      print(`${signItem.name} 未成功`, `${err.message} · 尝试重新进入页面`)
     }
-    print(`${signItem.name} 已签到`, `排名 ${json.studentRank}`)
     handlingSign[key] = false
     return
   }
@@ -218,11 +222,11 @@ const handleOneSign = async (signItem) => {
   }
   client.onclose = () => {
     handlingSign[key] = false
-    print('二维码通道关闭', signItem.name)
+    print('二维码通道关闭', `${signItem.name} · 尝试重新进入页面`)
   }
   client.onerror = () => {
     handlingSign[key] = false
-    print('二维码通道错误', signItem.name)
+    print('二维码通道错误', `${signItem.name} · 尝试重新进入页面`)
   }
 
   let cid = ''

@@ -34,11 +34,9 @@ zig build run -Doptimize=ReleaseSafe
     ^https://v18\.teachermate\.cn/wechat-pro-ssr/student/sign\?openid=(\w+)$ https://{your-frontend-domain}?api={https://your-backend-domain}&openid=$1
     ```
 
-  - ProxyPin
-
 - Android
 
-  - ProxyPin
+  - empty
 
 - PC
 

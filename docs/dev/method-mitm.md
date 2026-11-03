@@ -9,6 +9,6 @@
 ```bash
 zig build mitm
 # 或
-node scripts/build-mitm.js          # 构建全部
-node scripts/build-mitm.js proxypin # 只构建 ProxyPin
+node scripts/build-mitm.js           # 构建全部
+node scripts/build-mitm.js <target>  # 只构建指定 target
 ```

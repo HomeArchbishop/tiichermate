@@ -6,8 +6,6 @@
 >
 > https://github.com/ManiaciaChao/yatm
 
-> 小白使用教程：[借助 ProxyPin 的使用教程](docs/tutorial/proxypin.md)
-
 本仓库支持两种使用方案：
 
 - [Direct MITM 方案](docs/dev/method-mitm.md)：独立使用 MITM 脚本不依赖前后端。使用方便但灵活性差。
